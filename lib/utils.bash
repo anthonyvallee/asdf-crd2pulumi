@@ -2,7 +2,6 @@
 
 set -euo pipefail
 
-# TODO: Ensure this is the correct GitHub homepage where releases can be downloaded for crd2pulumi.
 GH_REPO="https://github.com/pulumi/crd2pulumi"
 TOOL_NAME="crd2pulumi"
 TOOL_TEST="crd2pulumi version"
@@ -31,9 +30,26 @@ list_github_tags() {
 }
 
 list_all_versions() {
-  # TODO: Adapt this. By default we simply list the tag names from GitHub releases.
-  # Change this function if crd2pulumi has other means of determining installable versions.
   list_github_tags
+}
+
+get_arch() {
+  local arch=$(uname -m)
+  case $arch in
+  amd64 | x86_64)
+    echo "amd64"
+    ;;
+  arm64)
+    echo "arm64"
+    ;;
+  *)
+    echo ""
+    ;;
+  esac
+}
+
+get_platform() {
+  [ "Linux" = "$(uname)" ] && echo "linux" || echo "darwin"
 }
 
 download_release() {
@@ -41,10 +57,24 @@ download_release() {
   version="$1"
   filename="$2"
 
-  # TODO: Adapt the release URL convention for crd2pulumi
-  url="$GH_REPO/archive/v${version}.tar.gz"
+  arch=$(get_arch)
+  if [ -z "$arch" ]; then
+    fail "Unsupported architecture: $arch"
+  fi
+  echo "Detected architecture: $arch"
+
+  platform=$(get_platform)
+  if [ -z "$platform" ]; then
+    fail "Unsupported platform: $platform"
+  fi
+  echo "Detected platform: $platform"
+
+  archive="crd2pulumi-v${version}-${platform}-${arch}.tar.gz"
+  url="$GH_REPO/releases/download/v${version}/${archive}"
 
   echo "* Downloading $TOOL_NAME release $version..."
+  echo "* Fetching release asset ${archive} on GitHub..."
+
   curl "${curl_opts[@]}" -o "$filename" -C - "$url" || fail "Could not download $url"
 }
 
@@ -59,9 +89,8 @@ install_version() {
 
   (
     mkdir -p "$install_path"
-    cp -r "$ASDF_DOWNLOAD_PATH"/* "$install_path"
+    cp "$ASDF_DOWNLOAD_PATH"/crd2pulumi "$install_path"
 
-    # TODO: Assert crd2pulumi executable exists.
     local tool_cmd
     tool_cmd="$(echo "$TOOL_TEST" | cut -d' ' -f1)"
     test -x "$install_path/$tool_cmd" || fail "Expected $install_path/$tool_cmd to be executable."
